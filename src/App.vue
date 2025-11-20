@@ -12,18 +12,18 @@
   />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import 'ag-grid-enterprise'
-import { ModuleRegistry } from 'ag-grid-community'
+import { ColDef, ModuleRegistry } from 'ag-grid-community'
 import { AllCommunityModule } from 'ag-grid-community'
 import { AllEnterpriseModule } from 'ag-grid-enterprise'
 import { AgGridVue } from 'ag-grid-vue3'
+import { Item } from '@/types/main.types'
 
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule])
 
-// Исходный массив
-const items = ref([
+const items = ref<Item[]>([
   { id: 1, parent: null, label: 'Айтем 1' },
   { id: '91064cee', parent: 1, label: 'Айтем 2' },
   { id: 3, parent: 1, label: 'Айтем 3' },
@@ -34,44 +34,48 @@ const items = ref([
   { id: 8, parent: 4, label: 'Айтем 8' },
 ])
 
-// --- Колонки
-const columnDefs = ref([
+const columnDefs = ref<ColDef[]>([
   {
-    headerName: '№',
+    headerName: '№ п/п',
     valueGetter: params => params.node.rowIndex + 1,
     pinned: 'left',
-    width: 70,
+    width: 100,
   },
   {
     headerName: 'Категория',
+    width: 150,
     valueGetter: params => {
-      const hasChildren = items.value.some(i => i.parent === params.data.id)
+      const hasChildren = items.value.some(i => i.parent === params.data?.id)
       return hasChildren ? 'Группа' : 'Элемент'
     },
-    width: 150,
   },
   {
     field: 'label',
     headerName: 'Наименование',
+    hide: true,
     flex: 1,
-    cellRenderer: 'agGroupCellRenderer',
   },
 ])
 
-// Настройка авто group column
-const autoGroupColumnDef = {
+// Auto group column — отображает дерево
+const autoGroupColumnDef = ref<ColDef>({
   headerName: 'Наименование',
-  cellRendererParams: { suppressCount: true },
-}
+  field: 'label',
+  cellRendererParams: {
+    suppressCount: true,
+  },
+})
 
 const getDataPath = data => {
   const path = []
   const map = Object.fromEntries(items.value.map(i => [i.id, i]))
   let current = data
+
   while (current) {
     path.unshift(current.label)
     current = map[current.parent] || null
   }
+
   return path
 }
 

@@ -1,46 +1,59 @@
+import type { Item } from './types'
+
 export class TreeStore {
-  items = []
-  constructor(items) {
-    this.items = items
+  private items: Item[] = []
+  private map: Map<Item['id'], Item> = new Map()
+  private childrenMap: Map<Item['id'], Item[]> = new Map()
+
+  private rebuildIndex() {
+    this.map.clear()
+    this.childrenMap.clear()
+
+    for (const item of this.items) {
+      this.map.set(item.id, item)
+
+      if (item.parent !== null) {
+        if (!this.childrenMap.has(item.parent)) {
+          this.childrenMap.set(item.parent, [])
+        }
+        this.childrenMap.get(item.parent)!.push(item)
+      }
+    }
   }
 
   getAll() {
     return this.items
   }
 
-  // --- 2. Получить 1 элемент по id
-  getItem(id) {
-    return this.items.find(item => item.id === id) || null
+  getItem(id: Item['id']) {
+    return this.map.get(id) || null
   }
 
-  // --- 3. Получить прямых детей
-  getChildren(id) {
-    return this.items.filter(item => item.parent === id)
+  getChildren(id: Item['id']) {
+    return this.childrenMap.get(id) || []
   }
 
-  // --- 4. Получить всех потомков (глубина любая)
-  getAllChildren(id) {
-    const result = []
+  getAllChildren(id: Item['id']) {
+    const result: Item[] = []
     const stack = [...this.getChildren(id)]
 
-    while (stack.length > 0) {
-      const child = stack.pop()
+    while (stack.length) {
+      const child = stack.pop()!
       result.push(child)
 
-      const subChildren = this.getChildren(child.id)
-      stack.push(...subChildren)
+      const sub = this.childrenMap.get(child.id)
+      if (sub) stack.push(...sub)
     }
 
     return result
   }
 
-  // --- 5. Получить всех родителей (вверх к корню)
-  getAllParents(id) {
-    const result = []
-    let current = this.getItem(id)
+  getAllParents(id: Item['id']) {
+    const result: Item[] = []
+    let current = this.map.get(id)
 
     while (current && current.parent !== null) {
-      const parent = this.getItem(current.parent)
+      const parent = this.map.get(current.parent)
       if (!parent) break
       result.push(parent)
       current = parent
@@ -49,32 +62,55 @@ export class TreeStore {
     return result
   }
 
-  // --- 6. Добавить элемент
-  addItem(item) {
+  addItem(item: Item) {
     this.items.push(item)
+    this.map.set(item.id, item)
+
+    if (item.parent !== null) {
+      if (!this.childrenMap.has(item.parent)) {
+        this.childrenMap.set(item.parent, [])
+      }
+      this.childrenMap.get(item.parent)!.push(item)
+    }
+
     return item
   }
 
-  // --- 7. Удалить элемент и всех его детей
-  removeItem(id) {
-    const toDelete = new Set([id])
+  removeItem(id: Item['id']) {
+    const toDelete = new Set<Item['id']>([id])
+    const stack = [...(this.childrenMap.get(id) || [])]
 
-    // Добавляем всех потомков
-    const children = this.getAllChildren(id)
-    children.forEach(c => toDelete.add(c.id))
+    while (stack.length) {
+      const child = stack.pop()!
+      toDelete.add(child.id)
 
-    // Фильтруем массив
+      const sub = this.childrenMap.get(child.id)
+      if (sub) stack.push(...sub)
+    }
+
     this.items = this.items.filter(item => !toDelete.has(item.id))
 
+    this.rebuildIndex()
     return true
   }
 
-  // --- 8. Обновить элемент
-  updateItem(updatedItem) {
-    const index = this.items.findIndex(item => item.id === updatedItem.id)
-    if (index === -1) return false
+  updateItem(updatedItem: Partial<Item> & { id: Item['id'] }) {
+    const old = this.map.get(updatedItem.id)
+    if (!old) return false
 
-    this.items[index] = { ...this.items[index], ...updatedItem }
-    return this.items[index]
+    const oldParent = old.parent
+
+    Object.assign(old, updatedItem)
+
+    if (updatedItem.parent !== undefined && updatedItem.parent !== oldParent) {
+      this.rebuildIndex()
+    }
+
+    return old
+  }
+
+  constructor(items: Item[]) {
+    this.items = items
+    this.rebuildIndex()
   }
 }
